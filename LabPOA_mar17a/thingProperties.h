@@ -3,6 +3,8 @@
 #include <ArduinoIoTCloud.h>
 #include <Arduino_ConnectionHandler.h>
 
+#define ArduinoIoTPreferredConnection ArduinoIoTCloudTCP
+
 const char DEVICE_LOGIN_NAME[]  = "256f4f46-62ab-438c-98d7-e15855e20aa9";
 
 const char SSID[]               = SECRET_SSID;    // Network SSID (name)
@@ -13,6 +15,7 @@ void onBombaChange();
 
 float hidrogenio;
 float pH;
+float tDS;
 float temperatura;
 bool bomba;
 
@@ -22,6 +25,7 @@ void initProperties(){
   ArduinoCloud.setSecretDeviceKey(DEVICE_KEY);
   ArduinoCloud.addProperty(hidrogenio, READ, ON_CHANGE, NULL);
   ArduinoCloud.addProperty(pH, READ, 5 * SECONDS, NULL);
+  ArduinoCloud.addProperty(tDS, READ, 5 * SECONDS, NULL);
   ArduinoCloud.addProperty(temperatura, READ, 5 * SECONDS, NULL);
   ArduinoCloud.addProperty(bomba, READWRITE, ON_CHANGE, onBombaChange);
 
