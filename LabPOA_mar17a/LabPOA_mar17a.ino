@@ -2,15 +2,22 @@
 #include "arduino_secrets.h"
 #include "thingProperties.h"
 
+#include <time.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+//Sensor de TDS
+#define TdsSensorPin 2
+#define VREF 3.3 // analog reference voltage(Volt) of the ADC
 
+int bits_TDS;
+float averageVoltage = 0,tdsValue = 0,temperature = 25;
+ 
+//Sensor de temperatura
 const int PINO_ONEWIRE = 13; // Define pino do sensor
 OneWire oneWire(PINO_ONEWIRE); // Cria um objeto OneWire
 DallasTemperature sensor(&oneWire); // Informa a referencia da biblioteca dallas temperature para Biblioteca onewire
 DeviceAddress endereco_temp; // Cria um endereco temporario da leitura do sensor
-
 
 
 //Adição futura de uma bomba d'água
@@ -32,12 +39,14 @@ TaskHandle_t Task2; //para comunicar-se com o cloud
 
 
 void setup() {
+  
   Serial.begin(115200);
   delay(1000);
 
-  pinMode(Bomb, OUTPUT);
-
+  //SENSORES
   sensor.begin();
+  pinMode(TdsSensorPin,INPUT);
+  pinMode(Bomb, OUTPUT);
 
   // ---------ARDUINO IOT CLOUD-------
   // Defined in thingProperties.h
@@ -47,18 +56,16 @@ void setup() {
   setDebugMessageLevel(2);
   ArduinoCloud.printDebugInfo();
 
-  
- /*
+  Serial.println("Conectando ao ArduinoCloud");
   while (!ArduinoCloud.connected()) {  //Enquanto o ESP não conectar, não vai sair daqui
     ArduinoCloud.update();
-    delay(400); // pequena pausa pra não travar
+    delay(500); // pequena pausa pra não travar
   }
-  */
 
   Serial.println("Arduino IoT Cloud conectado!");
   //------------------------------------
 
-  
+  Serial.println("Iniciando o núcleo 0");
   xTaskCreatePinnedToCore(
       Task1code, /* Function to implement the task */
       "Lendo", /* Name of the task */
@@ -68,8 +75,9 @@ void setup() {
       &Task1,  /* Task handle. */
       0); /* Core where the task should run */
   Serial.println("Iniciado o núcleo 0");
-  delay(500);
-
+  delay(100);
+  
+  Serial.println("Iniciando o núcleo 1");
   xTaskCreatePinnedToCore(
       Task2code, /* Function to implement the task */
       "Comunicando", /* Name of the task */
@@ -79,8 +87,7 @@ void setup() {
       &Task2,  /* Task handle. */
       1); /* Core where the task should run */
   Serial.println("Iniciado o núcleo 1");
-  delay(500);
-  
+ 
 
   randomSeed(analogRead(0));
   
@@ -88,7 +95,6 @@ void setup() {
 
 
 //Task1 -- Ler os sensores ------
-
 void Task1code( void * pvParameters ){
   Serial.print("Task1(leitura) rodando no núcleo ");
   Serial.println(xPortGetCoreID());
@@ -103,6 +109,7 @@ void Task1code( void * pvParameters ){
       
       temperatura = TEMP();
       pH = PH();
+      tDS = TDS();
       
       Serial.print("Temperatura: ");
       Serial.println(temperatura);
@@ -131,10 +138,11 @@ void Task2code( void * pvParameters ){
   Serial.print("Task2(comunicação) rodando no núcleo ");
   Serial.println(xPortGetCoreID());
   for(;;) {
-    ArduinoCloud.update();
-    Serial.println("Update enviado para a nuvem");
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    
+      ArduinoCloud.update();
+      Serial.println("Update enviado para a nuvem");
+ 
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
   }
 }
 
@@ -149,14 +157,13 @@ float TEMP(){
   if (!sensor.getAddress(endereco_temp,0)) { // Encontra o endereco do sensor no barramento
 
     Serial.println("SENSOR NAO CONECTADO (TEMPERATURA)"); // Sensor conectado, imprime mensagem de erro
-    return 999;
+    return 200;
   }
    else {
     Serial.print("Temperatura = "); // Imprime a temperatura no monitor serial
     
     return sensor.getTempC(endereco_temp); // Busca temperatura para dispositivo
   }
- 
 }
 
 int H2(){
@@ -165,6 +172,20 @@ int H2(){
 
 int PH(){
   return random(1,14);
+}
+
+float TDS(){
+  bits_TDS = analogRead(TdsSensorPin);
+
+  averageVoltage = bits_TDS * (float)VREF / 4096.0;
+
+  float compensationCoefficient = 1.0+0.02*(temperatura-25.0);
+  float compensationVolatge=averageVoltage/compensationCoefficient;
+
+  tDS=(133.42*compensationVolatge*compensationVolatge*compensationVolatge - 255.86*compensationVolatge*compensationVolatge + 857.39*compensationVolatge)*0.5; //convert voltage value to tds value
+  Serial.print("TDS:");
+  Serial.print(tDS,0);
+  Serial.println(" ppm");
 }
 
 void loop() {
