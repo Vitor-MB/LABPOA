@@ -7,9 +7,21 @@
 #include <DallasTemperature.h>
 
 //Sensor de TDS
-#define TdsSensorPin 2
+#define TdsSensorPin 4
 #define VREF 3.3 // analog reference voltage(Volt) of the ADC
 
+//SENSOR PH
+double calibracao_ph7 = 2.51;   // Tensão obtida em solução de calibração pH 7
+double calibracao_ph4 = 3.29;   // Tensão obtida em solução de calibração pH 4
+double calibracao_ph10 = 2.06;  // Tensão obtida em solução de calibração pH 10 
+#define UTILIZAR_PH_10 true  // Habilita calibração entre pH 7 e 10, caso contrário utiliza pH 7 e 4.
+#define Sensor_PH 15
+float m;
+float b;
+int buf[20];
+
+
+//SENSOR TDS
 int bits_TDS;
 float averageVoltage = 0,tdsValue = 0,temperature = 25;
  
@@ -18,6 +30,9 @@ const int PINO_ONEWIRE = 13; // Define pino do sensor
 OneWire oneWire(PINO_ONEWIRE); // Cria um objeto OneWire
 DallasTemperature sensor(&oneWire); // Informa a referencia da biblioteca dallas temperature para Biblioteca onewire
 DeviceAddress endereco_temp; // Cria um endereco temporario da leitura do sensor
+
+//PORTAS TEMPERATURA = 13 // PH = 15 // TDS = 2 
+
 
 
 //Adição futura de uma bomba d'água
@@ -170,8 +185,31 @@ int H2(){
   return random(0, 1000)/10.0;
 }
 
-int PH(){
-  return random(1,14);
+float PH(){
+  for (int i = 0; i < 20; i++) {  
+    buf[i] = analogRead(Sensor_PH);      
+    delay(10);
+  }
+
+  int valorMedio = 0;
+  
+  for (int i = 0; i < 20; i++) {  // Realiza o valor médio utilizando 6 amostras
+    valorMedio += buf[i];
+  }
+ 
+  double tensao = (valorMedio * 3.3) / 4096.0 / 20;  
+
+  if (tensao<=2.55) {
+    m = (7.0 - 10.0) / (calibracao_ph7 - calibracao_ph10);
+    b = 10.0 - m * calibracao_ph10;
+    Serial.println("calibração para PH 10");
+  } else {
+    m = (4.0 - 7.0) / (calibracao_ph4 - calibracao_ph7);
+    b = 7.0 - m * calibracao_ph7;
+    Serial.println("calibração para PH 4");
+  }
+
+   return m * tensao + b;
 }
 
 float TDS(){
@@ -181,11 +219,13 @@ float TDS(){
 
   float compensationCoefficient = 1.0+0.02*(temperatura-25.0);
   float compensationVolatge=averageVoltage/compensationCoefficient;
-
-  tDS=(133.42*compensationVolatge*compensationVolatge*compensationVolatge - 255.86*compensationVolatge*compensationVolatge + 857.39*compensationVolatge)*0.5; //convert voltage value to tds value
+  float TDS;
+  TDS=(133.42*compensationVolatge*compensationVolatge*compensationVolatge - 255.86*compensationVolatge*compensationVolatge + 857.39*compensationVolatge)*0.5; //convert voltage value to tds value
   Serial.print("TDS:");
   Serial.print(tDS,0);
   Serial.println(" ppm");
+
+  return TDS;
 }
 
 void loop() {
