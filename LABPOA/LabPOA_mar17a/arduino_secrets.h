@@ -1,0 +1,3 @@
+#define SECRET_DEVICE_KEY "rKbEweBxHwz!HD7eHF9VYkqD1"
+#define SECRET_OPTIONAL_PASS "1mcq65ma"
+#define SECRET_SSID "brisa-2349682"
