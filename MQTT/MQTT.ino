@@ -1,5 +1,6 @@
 #include <ArduinoMqttClient.h>
 #include <WiFi.h>
+#include <ArduinoJson.h>
 
 #include "arduino_secrets.h"
 
@@ -11,13 +12,12 @@ MqttClient mqttClient(wifiClient);
 
 const char broker[] = "192.168.0.50";
 int        port     = 1883;
-const char Topico[]  = "teste";
+const char TopicoSensores[]  = "monitoramento/sensores";
 const char motor[]  = "controle/motor";
 
 const long interval = 10000;
 unsigned long TempoAnt = 0;
 
-int count = 0;
 
 void setup() {
   
@@ -44,7 +44,7 @@ void setup() {
   Serial.println(broker);
 
   while(!mqttClient.connect(broker, port)){
-      Serial.print("Conexao MQTT falhou! Error code = ");
+      Serial.print("Conexao MQTT falhou! Codigo de erro = ");
       Serial.println(mqttClient.connectError());
       delay(5000);
     }
@@ -71,36 +71,48 @@ void loop() {
   if (currentMillis - TempoAnt >= interval) {
     TempoAnt = currentMillis;
 
-    Serial.print("Enviando mensagem ao Topico: ");
-    Serial.println(Topico);
-    Serial.print("EspComunicando ");
-    Serial.println(count);
+    StaticJsonDocument<200> doc;
+    doc["Temperatura"] = 27.2;
+    doc["PH"] = 7.1;
+    doc["TDS"] = 22;
+    doc["Condutividade"] = 0.15;
+    doc["H2"] = 27.2;
+    doc["Turbidez"] = 2;
 
-    // Envia a mensagem
-    mqttClient.beginMessage(Topico, false, 2); //QoS 2 (Exatamente 1 vez)
-    mqttClient.print("ESPComunicando ");
-    mqttClient.print(count);
+    char jsonBuffer[256];
+    serializeJson(doc, jsonBuffer);
+    
+    Serial.print("Enviando mensagem ao TopicoSensores: ");
+    Serial.println(TopicoSensores);
+    Serial.print("Enviando JSON: ");
+    Serial.println(jsonBuffer);
+
+
+    // Envia a mensagem (JSON)
+    mqttClient.beginMessage(TopicoSensores, true, 2); //QoS 2 (Exatamente 1 vez)
+    mqttClient.print(jsonBuffer);
     mqttClient.endMessage();
 
     Serial.println();
 
-    count++;
   }
 }
 
 
 void onMqttMessage(int messageSize) {
   // we received a message, print out the Topico and contents
-  Serial.print("Received a message with Topico '");
+  Serial.print("Mesagem recebida com Topico '");
   Serial.print(mqttClient.messageTopic());
-  Serial.print("', length ");
+  Serial.print("', Tamanho ");
   Serial.print(messageSize);
   Serial.println(" bytes:");
 
-  // use the Stream interface to print the contents
+  String payload = "";
   while (mqttClient.available()) {
-    Serial.print((char)mqttClient.read());
+    char c = (char)mqttClient.read();
+    payload += c;
   }
+  Serial.println(payload);
   Serial.println();
 
   Serial.println();
@@ -138,7 +150,7 @@ void ConfereConexoes(){
     Serial.println("Tentando reestabelecer a conexao"); 
 
     while( !mqttClient.connect(broker, port)){
-      Serial.print("Conexao MQTT falhou! Error code = ");
+      Serial.print("Conexao MQTT falhou! Codigo de Erro = ");
       Serial.println(mqttClient.connectError());
       delay(5000);
     }
