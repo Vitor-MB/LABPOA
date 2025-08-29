@@ -1,7 +1,7 @@
 #include <ArduinoMqttClient.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
-
+#include <DS1307.h>
 #include "arduino_secrets.h"
 
 char ssid[] = SECRET_SSID;    // your network SSID (name)
@@ -15,6 +15,11 @@ int        port     = 1883;
 const char TopicoSensores[]  = "monitoramento/sensores";
 const char motor[]  = "controle/motor";
 
+
+uint8_t sec, minute, hour, day, month;
+uint16_t year;
+DS1307 rtc;
+
 const long interval = 10000;
 unsigned long TempoAnt = 0;
 
@@ -25,7 +30,10 @@ void setup() {
   while (!Serial) {
     ; 
   }
-
+  
+  rtc.begin();
+  rtc.start();
+  
   Serial.print("Conectando ao WiFi: ");
   Serial.println(ssid);
   WiFi.begin(ssid, pass);
@@ -70,8 +78,19 @@ void loop() {
   
   if (currentMillis - TempoAnt >= interval) {
     TempoAnt = currentMillis;
+    
+    rtc.get(&sec, &minute, &hour, &day, &month, &year);
 
+    
+    char timestamp[25];
+    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02dT%02d:%02d:%02dZ" ,year, month, day, hour, minute, sec);
+
+    // --- Gerar msg_id ---
+    String msgId = String("msg_") + String(year)+ String(month)+String(day)+ String(sec) + String(millis());
+    
     StaticJsonDocument<200> doc;
+    doc["msg_id"] = msgId;
+    doc["timestamp"] = timestamp;
     doc["Temperatura"] = 27.2;
     doc["PH"] = 7.1;
     doc["TDS"] = 22;
